@@ -46,6 +46,29 @@ NSString *const CUSTOM_SELECTOR = @"_CUSTOM_SELECTOR_";
   return nil;
 }
 @end
+@interface RNCWKWebView_ : WKWebView
+@property (nonatomic, copy) NSArray<NSDictionary *> * _Nullable menuItems;
+@end
+@implementation RNCWKWebView_
+
+- (BOOL)canPerformAction:(SEL)action
+              withSender:(id)sender{
+
+  if (!self.menuItems) {
+    return YES;
+  }
+  return NO;
+}
+
+- (void)buildMenuWithBuilder:(id<UIMenuBuilder>)builder API_AVAILABLE(ios(13.0))  {
+    if (@available(iOS 16.0, *)) {
+      if(self.menuItems){
+        [builder removeMenuForIdentifier:UIMenuLookup];
+      }
+    }
+    [super buildMenuWithBuilder:builder];
+}
+@end
 #endif // !TARGET_OS_OSX
 
 #if TARGET_OS_OSX
@@ -81,7 +104,7 @@ RCTAutoInsetsProtocol>
 @property (nonatomic, copy) RCTDirectEventBlock onScroll;
 @property (nonatomic, copy) RCTDirectEventBlock onContentProcessDidTerminate;
 #if !TARGET_OS_OSX
-@property (nonatomic, copy) WKWebView *webView;
+@property (nonatomic, copy) RNCWKWebView_ *webView;
 #else
 @property (nonatomic, copy) RNCWKWebView *webView;
 #endif // !TARGET_OS_OSX
@@ -208,24 +231,33 @@ RCTAutoInsetsProtocol>
 {
   // When a long press ends, bring up our custom UIMenu
   if(pressSender.state == UIGestureRecognizerStateEnded) {
-    if (!self.menuItems || self.menuItems.count == 0) {
+    _webView.menuItems = self.menuItems;
+
+    if (!self.menuItems) {
       return;
     }
-    UIMenuController *menuController = [UIMenuController sharedMenuController];
-    NSMutableArray *menuControllerItems = [NSMutableArray arrayWithCapacity:self.menuItems.count];
-    
-    for(NSDictionary *menuItem in self.menuItems) {
-      NSString *menuItemLabel = [RCTConvert NSString:menuItem[@"label"]];
-      NSString *menuItemKey = [RCTConvert NSString:menuItem[@"key"]];
-      NSString *sel = [NSString stringWithFormat:@"%@%@", CUSTOM_SELECTOR, menuItemKey];
-      UIMenuItem *item = [[UIMenuItem alloc] initWithTitle: menuItemLabel
-                                                    action: NSSelectorFromString(sel)];
-      
-      [menuControllerItems addObject: item];
+    else if (self.menuItems.count == 0) {
+      UIMenuController *menuController = [UIMenuController sharedMenuController];
+      menuController.menuItems = nil;
+      [menuController setMenuVisible:NO animated:YES];
     }
-    
-    menuController.menuItems = menuControllerItems;
-    [menuController setMenuVisible:YES animated:YES];
+    else {
+      UIMenuController *menuController = [UIMenuController sharedMenuController];
+      NSMutableArray *menuControllerItems = [NSMutableArray arrayWithCapacity:self.menuItems.count];
+
+      for(NSDictionary *menuItem in self.menuItems) {
+        NSString *menuItemLabel = [RCTConvert NSString:menuItem[@"label"]];
+        NSString *menuItemKey = [RCTConvert NSString:menuItem[@"key"]];
+        NSString *sel = [NSString stringWithFormat:@"%@%@", CUSTOM_SELECTOR, menuItemKey];
+        UIMenuItem *item = [[UIMenuItem alloc] initWithTitle: menuItemLabel
+                                                      action: NSSelectorFromString(sel)];
+
+        [menuControllerItems addObject: item];
+      }
+
+      menuController.menuItems = menuControllerItems;
+      [menuController setMenuVisible:YES animated:YES];
+    }
   }
 }
 
@@ -427,7 +459,7 @@ RCTAutoInsetsProtocol>
   if (self.window != nil && _webView == nil) {
     WKWebViewConfiguration *wkWebViewConfig = [self setUpWkWebViewConfig];
 #if !TARGET_OS_OSX
-    _webView = [[WKWebView alloc] initWithFrame:self.bounds configuration: wkWebViewConfig];
+    _webView = [[RNCWKWebView_ alloc] initWithFrame:self.bounds configuration: wkWebViewConfig];
 #else
     _webView = [[RNCWKWebView alloc] initWithFrame:self.bounds configuration: wkWebViewConfig];
 #endif // !TARGET_OS_OSX
@@ -435,6 +467,7 @@ RCTAutoInsetsProtocol>
     [self setBackgroundColor: _savedBackgroundColor];
 #if !TARGET_OS_OSX
     _webView.scrollView.delegate = self;
+    _webView.menuItems = self.menuItems;
 #endif // !TARGET_OS_OSX
     _webView.UIDelegate = self;
     _webView.navigationDelegate = self;
