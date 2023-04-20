@@ -146,6 +146,7 @@ RCTAutoInsetsProtocol>
     super.backgroundColor = [UIColor clearColor];
 #else
     super.backgroundColor = [RCTUIColor clearColor];
+    super.tintColor = [UIColor colorWithRed: 0.57 green: 0.37 blue: 1.00 alpha: 1.00];
 #endif // !TARGET_OS_OSX
     _bounces = YES;
     _scrollEnabled = YES;
